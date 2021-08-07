@@ -1,5 +1,5 @@
 server:
-  prot: 8888　
+  port: 8050
 
 
 spring:
