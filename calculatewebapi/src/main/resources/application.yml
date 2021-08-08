@@ -1,11 +1,11 @@
 server:
-  port: 7931
+  port: 7500
 
 
 spring:
   datasource:
     driver-class-name: com.mysql.jdbc.Driver
-    url: jdbc:mysql://47.96.127.9:3306/mysql?useUnicode=true&characterEncoding=UTF-8
+    url: jdbc:mysql://47.96.127.9:3306/dev_DBA?useUnicode=true&characterEncoding=UTF-8
     username: root
     password: Admin_czn
   jackson:

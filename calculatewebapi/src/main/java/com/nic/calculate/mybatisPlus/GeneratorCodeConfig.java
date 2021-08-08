@@ -45,7 +45,7 @@ public class GeneratorCodeConfig {
 
         // 数据源配置
         DataSourceConfig dsc = new DataSourceConfig();
-        dsc.setUrl("jdbc:mysql://47.96.127.9:3306/mysql?useUnicode=true&characterEncoding=UTF-8");
+        dsc.setUrl("jdbc:mysql://47.96.127.9:3306/dev_DBA?useUnicode=true&characterEncoding=UTF-8");
         dsc.setDriverName("com.mysql.jdbc.Driver");
         dsc.setUsername("root");
         dsc.setPassword("Admin_czn");
