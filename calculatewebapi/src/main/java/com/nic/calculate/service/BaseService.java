@@ -2,17 +2,20 @@ package com.nic.calculate.service;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.nic.calculate.help.ArraysLambda;
 import com.nic.calculate.help.BaseResponse;
 import com.nic.calculate.mybatisPlus.entity.CalculateBill;
 import com.nic.calculate.mybatisPlus.service.impl.CalculateBillServiceImpl;
+import com.nic.calculate.regular.dto.BillDetailDto;
+import com.nic.calculate.regular.dto.CalculateResultDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @Transactional
@@ -28,12 +31,12 @@ public class BaseService {
         BaseResponse<Object> response = new BaseResponse<>();
 
 
-        CalculateBill entity  =  new CalculateBill();
-        entity.setId(UUID.randomUUID()+"");
+        CalculateBill entity = new CalculateBill();
+        entity.setId(UUID.randomUUID() + "");
         entity.setBillCount(6);
         entity.setBillName("测试生成账单记录2");
         entity.setBeginTime(new Date());
-        entity.setCreateUserId(UUID.randomUUID()+"");
+        entity.setCreateUserId(UUID.randomUUID() + "");
         entity.setOriginFund(1000d);
 
         boolean saveSuccess = calculateBillService.save(entity);
@@ -42,14 +45,16 @@ public class BaseService {
     }
 
 
-    private static final long  serialVersionUID=1L;
+    private static final long serialVersionUID = 1L;
 
     private static final String APPID = "wxb88xxxxxxxx46140e";
     private static final String SECRET = "19fa40c6xxxxxxxx6ae971267";
     private String code;
+
     public String getCode() {
         return code;
     }
+
     public void setCode(String code) {
         this.code = code;
     }
@@ -89,5 +94,86 @@ public class BaseService {
 //
 //        return result.toString();
 //    }
+
+    public BaseResponse calculateTheBillResult(List<BillDetailDto> list) {
+        BaseResponse<Object> response = new BaseResponse<>();
+        //payAmount is positive Number ,the person is payer.
+        List<BillDetailDto> receiveList = ArraysLambda.where(list, f -> f.getPayAmount() > 0);
+        //payAmount is negative Number ,the person is receiver.
+        List<BillDetailDto> payList = ArraysLambda.where(list, f -> f.getPayAmount() < 0);
+
+        //no pay and no receive person
+        List<BillDetailDto> nonList = ArraysLambda.where(list, f -> f.getPayAmount() == 0);
+
+        //they are payPool and receivePool
+        double totalPayAmountPool = this.getTotalPayByList(payList);
+        double totalReceiveAmountPool = this.getTotalPayByList(receiveList);
+
+        if (totalPayAmountPool != totalReceiveAmountPool) {
+            response.setMessage("支出与收入不对等，请检查数据");
+            return response;
+        }
+        Map<String, Double> payMap = new HashMap<>();
+        Map<String, Double> receiveMap = new HashMap<>();
+        for (BillDetailDto dto : payList) {
+            payMap.put(dto.getUserId(), dto.getPayAmount());
+        }
+        for (BillDetailDto dto : receiveList) {
+            receiveMap.put(dto.getUserId(), dto.getPayAmount());
+        }
+        response.setData(this.calculate(totalPayAmountPool, payMap, receiveMap));
+        response.setSuccess(true);
+        return response;
+    }
+
+    private List<CalculateResultDto> calculate(double amountPool,
+                                               Map<String, Double> payMap,
+                                               Map<String, Double> receiveMap) {
+        List<CalculateResultDto> resultList = new ArrayList<>();
+
+        for (String receiver : receiveMap.keySet()) {
+            Double amount = receiveMap.get(receiver);
+            for (String payer : payMap.keySet()) {
+                double payAmount = Math.abs(payMap.get(payer));
+
+                if (payAmount == 0 || amount == 0) {
+                    continue;
+                }
+                if (payAmount >= amount) {
+                    resultList.add(new CalculateResultDto(payer, receiver, amount));
+                    payMap.put(payer, sub(payAmount, amount));
+                    amount = 0d;
+                } else if (payAmount < amount) {
+                    resultList.add(new CalculateResultDto(payer, receiver, payAmount));
+                    payMap.put(payer, 0d);
+                    amount = sub(amount, payAmount);
+                }
+            }
+        }
+        for (CalculateResultDto result : resultList) {
+            amountPool = sub(amountPool, result.getAmount());
+        }
+        if (amountPool != 0) {
+            return null;
+        }
+
+        return resultList;
+    }
+
+    private double sub(double d1, double d2) {
+        BigDecimal bd1 = new BigDecimal(Double.toString(d1));
+        BigDecimal bd2 = new BigDecimal(Double.toString(d2));
+        return bd1.subtract(bd2).doubleValue();
+    }
+
+
+    private double getTotalPayByList(List<BillDetailDto> list) {
+        double result = 0d;
+        for (BillDetailDto billDetailDto : list) {
+            result += Math.abs(billDetailDto.getPayAmount());
+        }
+        return result;
+    }
+
 
 }
