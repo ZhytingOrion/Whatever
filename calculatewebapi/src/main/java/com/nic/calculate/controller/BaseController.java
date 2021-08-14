@@ -3,6 +3,7 @@ package com.nic.calculate.controller;
 
 import com.nic.calculate.help.BaseResponse;
 import com.nic.calculate.regular.dto.BillDetailDto;
+import com.nic.calculate.regular.request.CalculateBillResultRequest;
 import com.nic.calculate.service.BaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,8 @@ public class BaseController {
     private BaseService baseService;
 
     @RequestMapping(name = "test", method = RequestMethod.POST, path = "/api/test")
-    public BaseResponse testapi(@RequestBody List<BillDetailDto> list){
-        return baseService.calculateTheBillResult(list);
+    public BaseResponse testapi(@RequestBody CalculateBillResultRequest request){
+        return baseService.calculateTheBillResult(request);
     }
 
 }

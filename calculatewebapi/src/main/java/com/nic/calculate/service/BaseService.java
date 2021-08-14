@@ -8,6 +8,7 @@ import com.nic.calculate.mybatisPlus.entity.CalculateBill;
 import com.nic.calculate.mybatisPlus.service.impl.CalculateBillServiceImpl;
 import com.nic.calculate.regular.dto.BillDetailDto;
 import com.nic.calculate.regular.dto.CalculateResultDto;
+import com.nic.calculate.regular.request.CalculateBillResultRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,8 +96,10 @@ public class BaseService {
 //        return result.toString();
 //    }
 
-    public BaseResponse calculateTheBillResult(List<BillDetailDto> list) {
+    public BaseResponse calculateTheBillResult(CalculateBillResultRequest request) {
         BaseResponse<Object> response = new BaseResponse<>();
+        List<BillDetailDto> list = request.getList();
+        List<CalculateResultDto> result = new ArrayList<>();
         //payAmount is positive Number ,the person is payer.
         List<BillDetailDto> receiveList = ArraysLambda.where(list, f -> f.getPayAmount() > 0);
         //payAmount is negative Number ,the person is receiver.
@@ -114,24 +117,127 @@ public class BaseService {
         }
         Map<String, Double> payMap = new LinkedHashMap<>();
         Map<String, Double> receiveMap = new LinkedHashMap<>();
-        Collections.sort(payList);
-        Collections.sort(receiveList);
-        for (BillDetailDto dto : payList) {
-            payMap.put(dto.getUserId(), dto.getPayAmount());
+
+        switch (request.getResultCase()) {
+            case 1:
+                Collections.sort(payList);
+                Collections.sort(receiveList);
+                for (BillDetailDto dto : payList) {
+                    payMap.put(dto.getUserId(), dto.getPayAmount());
+                }
+                for (BillDetailDto dto : receiveList) {
+                    receiveMap.put(dto.getUserId(), dto.getPayAmount());
+                }
+                result = this.calculateByReceiveSort(totalPayAmountPool, payMap, receiveMap, nonList);
+                break;
+            case 2:
+
+
+                result = this.calculateByDifferSort(totalPayAmountPool, payMap, receiveMap, nonList);
+                break;
+
+            case 3:
+                Collections.sort(payList);
+                Collections.sort(receiveList);
+                list = ArraysLambda.select(list, f -> new BillDetailDto(f.getUserId(), Math.abs(f.getPayAmount())));
+                Collections.sort(list);
+                for (BillDetailDto dto : payList) {
+                    payMap.put(dto.getUserId(), dto.getPayAmount());
+                }
+                for (BillDetailDto dto : receiveList) {
+                    receiveMap.put(dto.getUserId(), dto.getPayAmount());
+                }
+                result = this.calculateByTransferStation(totalPayAmountPool, payMap, receiveMap, list, nonList);
+            default:
+                break;
+
         }
-        for (BillDetailDto dto : receiveList) {
-            receiveMap.put(dto.getUserId(), dto.getPayAmount());
-        }
-        response.setData(this.calculate(totalPayAmountPool, payMap, receiveMap, nonList));
+
+
+        response.setData(result);
         response.setSuccess(true);
         return response;
     }
 
-    private List<CalculateResultDto> calculate(double amountPool,
-                                               Map<String, Double> payMap,
-                                               Map<String, Double> receiveMap,
-                                               List<BillDetailDto> nonList) {
+    private List<CalculateResultDto> matchSamePayAndReceive( Map<String, Double> payMap, Map<String, Double> receiveMap){
         List<CalculateResultDto> resultList = new ArrayList<>();
+        for (String payer : payMap.keySet()) {
+            for (String receiver : receiveMap.keySet()) {
+                if (Math.abs(payMap.get(payer)) == receiveMap.get(receiver)){
+                    resultList.add(new CalculateResultDto(payer, receiver, receiveMap.get(receiver)));
+                }
+            }
+        }
+        return resultList;
+    }
+
+
+    private List<CalculateResultDto> calculateByDifferSort(double amountPool,
+                                                           Map<String, Double> payMap,
+                                                           Map<String, Double> receiveMap,
+                                                           List<BillDetailDto> nonList) {
+
+
+
+
+        return null;
+    }
+
+    private List<CalculateResultDto> calculateByTransferStation(double amountPool,
+                                                                Map<String, Double> payMap,
+                                                                Map<String, Double> receiveMap,
+                                                                List<BillDetailDto> list,
+                                                                List<BillDetailDto> nonList) {
+        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap,receiveMap);
+        if (resultList != null && resultList.size() >0 ){
+            for (CalculateResultDto dto : resultList) {
+                payMap.remove(dto.getPayPerson());
+                receiveMap.remove(dto.getReceivePerson());
+            }
+        }
+
+        // how to choose this transfer Station person ? /lower,higher,random,may user id sort/
+        BillDetailDto transferS = list.get(list.size() - 1);
+        if (transferS.getPayAmount() > 0) {
+            receiveMap.remove(transferS.getUserId());
+        } else {
+            payMap.remove(transferS.getUserId());
+        }
+
+        for (String payer : payMap.keySet()) {
+            resultList.add(new CalculateResultDto(payer, transferS.getUserId(), payMap.get(payer)));
+        }
+        for (String receiver : receiveMap.keySet()) {
+            resultList.add(new CalculateResultDto(transferS.getUserId(), receiver, receiveMap.get(receiver)));
+        }
+
+        double originAmount = Math.abs(amountPool);
+        for (CalculateResultDto result : resultList) {
+            amountPool = sub(amountPool, result.getAmount());
+        }
+        if (originAmount != (Math.abs(amountPool)+Math.abs(transferS.getPayAmount())) ) {
+            return null;
+        }
+
+//        if (nonList != null && nonList.size() >0){
+//            for (BillDetailDto billDetailDto : nonList) {
+//                resultList.add(new CalculateResultDto(billDetailDto.getUserId(), billDetailDto.getUserId(), billDetailDto.getPayAmount()));
+//            }
+//        }
+        return resultList;
+    }
+
+    private List<CalculateResultDto> calculateByReceiveSort(double amountPool,
+                                                            Map<String, Double> payMap,
+                                                            Map<String, Double> receiveMap,
+                                                            List<BillDetailDto> nonList) {
+        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap,receiveMap);
+        if (resultList != null && resultList.size() >0 ){
+            for (CalculateResultDto dto : resultList) {
+                payMap.remove(dto.getPayPerson());
+                receiveMap.remove(dto.getReceivePerson());
+            }
+        }
 
         for (String receiver : receiveMap.keySet()) {
             Double amount = receiveMap.get(receiver);
