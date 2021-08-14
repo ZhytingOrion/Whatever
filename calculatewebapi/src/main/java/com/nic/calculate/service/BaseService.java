@@ -100,9 +100,8 @@ public class BaseService {
         //payAmount is positive Number ,the person is payer.
         List<BillDetailDto> receiveList = ArraysLambda.where(list, f -> f.getPayAmount() > 0);
         //payAmount is negative Number ,the person is receiver.
-        List<BillDetailDto> payList = ArraysLambda.where(list, f -> f.getPayAmount() < 0);
+        List<BillDetailDto> payList = ArraysLambda.select(ArraysLambda.where(list, f -> f.getPayAmount() < 0), n -> new BillDetailDto(n.getUserId(), Math.abs(n.getPayAmount())));
 
-        //no pay and no receive person
         List<BillDetailDto> nonList = ArraysLambda.where(list, f -> f.getPayAmount() == 0);
 
         //they are payPool and receivePool
@@ -113,22 +112,25 @@ public class BaseService {
             response.setMessage("支出与收入不对等，请检查数据");
             return response;
         }
-        Map<String, Double> payMap = new HashMap<>();
-        Map<String, Double> receiveMap = new HashMap<>();
+        Map<String, Double> payMap = new LinkedHashMap<>();
+        Map<String, Double> receiveMap = new LinkedHashMap<>();
+        Collections.sort(payList);
+        Collections.sort(receiveList);
         for (BillDetailDto dto : payList) {
             payMap.put(dto.getUserId(), dto.getPayAmount());
         }
         for (BillDetailDto dto : receiveList) {
             receiveMap.put(dto.getUserId(), dto.getPayAmount());
         }
-        response.setData(this.calculate(totalPayAmountPool, payMap, receiveMap));
+        response.setData(this.calculate(totalPayAmountPool, payMap, receiveMap, nonList));
         response.setSuccess(true);
         return response;
     }
 
     private List<CalculateResultDto> calculate(double amountPool,
                                                Map<String, Double> payMap,
-                                               Map<String, Double> receiveMap) {
+                                               Map<String, Double> receiveMap,
+                                               List<BillDetailDto> nonList) {
         List<CalculateResultDto> resultList = new ArrayList<>();
 
         for (String receiver : receiveMap.keySet()) {
@@ -156,7 +158,11 @@ public class BaseService {
         if (amountPool != 0) {
             return null;
         }
-
+//        if (nonList != null && nonList.size() >0){
+//            for (BillDetailDto billDetailDto : nonList) {
+//                resultList.add(new CalculateResultDto(billDetailDto.getUserId(), billDetailDto.getUserId(), billDetailDto.getPayAmount()));
+//            }
+//        }
         return resultList;
     }
 
