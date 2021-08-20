@@ -131,8 +131,14 @@ public class BaseService {
                 result = this.calculateByReceiveSort(totalPayAmountPool, payMap, receiveMap, nonList);
                 break;
             case 2:
-
-
+                Collections.sort(payList);
+                Collections.sort(receiveList);
+                for (BillDetailDto dto : payList) {
+                    payMap.put(dto.getUserId(), dto.getPayAmount());
+                }
+                for (BillDetailDto dto : receiveList) {
+                    receiveMap.put(dto.getUserId(), dto.getPayAmount());
+                }
                 result = this.calculateByDifferSort(totalPayAmountPool, payMap, receiveMap, nonList);
                 break;
 
@@ -159,11 +165,11 @@ public class BaseService {
         return response;
     }
 
-    private List<CalculateResultDto> matchSamePayAndReceive( Map<String, Double> payMap, Map<String, Double> receiveMap){
+    private List<CalculateResultDto> matchSamePayAndReceive(Map<String, Double> payMap, Map<String, Double> receiveMap) {
         List<CalculateResultDto> resultList = new ArrayList<>();
         for (String payer : payMap.keySet()) {
             for (String receiver : receiveMap.keySet()) {
-                if (Math.abs(payMap.get(payer)) == receiveMap.get(receiver)){
+                if (Math.abs(payMap.get(payer)) == receiveMap.get(receiver)) {
                     resultList.add(new CalculateResultDto(payer, receiver, receiveMap.get(receiver)));
                 }
             }
@@ -176,11 +182,50 @@ public class BaseService {
                                                            Map<String, Double> payMap,
                                                            Map<String, Double> receiveMap,
                                                            List<BillDetailDto> nonList) {
+        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap, receiveMap);
+        if (resultList != null && resultList.size() > 0) {
+            for (CalculateResultDto dto : resultList) {
+                payMap.remove(dto.getPayPerson());
+                receiveMap.remove(dto.getReceivePerson());
+            }
+        }
+        resultList.addAll(this.recursionGetResultList(payMap, receiveMap, null));
 
 
+        return resultList;
+    }
 
+    private List<CalculateResultDto> recursionGetResultList(Map<String, Double> payMap, Map<String, Double> receiveMap, List<CalculateResultDto> resultList) {
 
-        return null;
+        if (resultList == null) {
+            resultList = new ArrayList<>();
+        }
+        if (payMap == null
+                || receiveMap == null
+                || payMap.keySet() == null
+                || receiveMap.keySet() == null
+                || payMap.keySet().size() == 0
+                || receiveMap.keySet().size() == 0) {
+
+            return resultList;
+        }
+
+        CalculateResultDto lowestResult = null;
+
+        for (String payer : payMap.keySet()) {
+            double payAmount = Math.abs(payMap.get(payer));
+            for (String receiver : receiveMap.keySet()) {
+                double receiverAmount = Math.abs(receiveMap.get(receiver));
+                double amount = Math.abs(Math.abs(receiverAmount) - Math.abs(payAmount));
+                if (lowestResult == null || lowestResult.getAmount() > amount) {
+                    lowestResult = new CalculateResultDto(payer, receiver, amount);
+                }
+            }
+        }
+        resultList.addAll(Arrays.asList(lowestResult));
+        payMap.remove(lowestResult.getPayPerson());
+        receiveMap.remove(lowestResult.getReceivePerson());
+        return recursionGetResultList(payMap, receiveMap, resultList);
     }
 
     private List<CalculateResultDto> calculateByTransferStation(double amountPool,
@@ -188,8 +233,8 @@ public class BaseService {
                                                                 Map<String, Double> receiveMap,
                                                                 List<BillDetailDto> list,
                                                                 List<BillDetailDto> nonList) {
-        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap,receiveMap);
-        if (resultList != null && resultList.size() >0 ){
+        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap, receiveMap);
+        if (resultList != null && resultList.size() > 0) {
             for (CalculateResultDto dto : resultList) {
                 payMap.remove(dto.getPayPerson());
                 receiveMap.remove(dto.getReceivePerson());
@@ -215,7 +260,7 @@ public class BaseService {
         for (CalculateResultDto result : resultList) {
             amountPool = sub(amountPool, result.getAmount());
         }
-        if (originAmount != (Math.abs(amountPool)+Math.abs(transferS.getPayAmount())) ) {
+        if (originAmount != (Math.abs(amountPool) + Math.abs(transferS.getPayAmount()))) {
             return null;
         }
 
@@ -231,8 +276,8 @@ public class BaseService {
                                                             Map<String, Double> payMap,
                                                             Map<String, Double> receiveMap,
                                                             List<BillDetailDto> nonList) {
-        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap,receiveMap);
-        if (resultList != null && resultList.size() >0 ){
+        List<CalculateResultDto> resultList = this.matchSamePayAndReceive(payMap, receiveMap);
+        if (resultList != null && resultList.size() > 0) {
             for (CalculateResultDto dto : resultList) {
                 payMap.remove(dto.getPayPerson());
                 receiveMap.remove(dto.getReceivePerson());
